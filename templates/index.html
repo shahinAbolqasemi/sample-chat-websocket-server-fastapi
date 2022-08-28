@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chat</title>
+    </head>
+    <body>
+        <div id="login-page">
+            <h1>Login</h1>
+            <form action="" onsubmit="loginToChat(event)" >
+                <input type="text" name="username" id="username-input" placeholder="username" required/>
+                <input type="password" name="password" id="password-input" placeholder="password" required/>
+                <button>Login</button>
+            </form>
+        </div>
+        <div id="chat-page" hidden>
+            <h1>WebSocket Chat</h1>
+            <form action="" onsubmit="sendMessage(event)">
+                <input type="text" id="messageText" autocomplete="off" required/>
+                <input type="text" id="username" autocomplete="off" required/>
+                <button>Send</button>
+            </form>
+            <ul id='messages'>
+            </ul>
+        </div>
+        <script>
+            let loginPage = document.getElementById('login-page')
+            let chatPage = document.getElementById('chat-page')
+
+            if (localStorage.getItem('token')) {
+                var ws = new WebSocket(`ws://192.168.88.120:8000/ws?token=${localStorage.getItem('token')}`);
+                ws.addEventListener('error', (event) => {
+                  console.log('WebSocket error: ', event);
+                  loginPage.hidden = false;
+                  chatPage.hidden = true;
+                  localStorage.removeItem('token')
+                });
+
+                ws.onmessage = function(event) {
+                    var messages = document.getElementById('messages')
+                    var message = document.createElement('li')
+                    var content = document.createTextNode(event.data)
+                    message.appendChild(content)
+                    messages.appendChild(message)
+                };
+                loginPage.hidden = true
+                chatPage.hidden = false
+            }
+
+            function loginToChat(event) {
+                event.preventDefault()
+
+                let formData =  new FormData(event.target)
+
+                fetch('http://192.168.88.120:8000/token', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json'
+                    },
+                    body: new URLSearchParams({
+                        'grant_type': '',
+                        'username': formData.get('username'),
+                        'password': formData.get('password'),
+                        'scope': '',
+                        'client_id': '',
+                        'client_secret': ''
+                    })
+                })
+                    .then(response => response.json())
+                    .then(result => {
+                        console.log('Success', result)
+                        localStorage.setItem('token', result.access_token)
+                        loginPage.hidden = !loginPage.hidden
+                        chatPage.hidden = !chatPage.hidden
+                        var ws = new WebSocket(`ws://192.168.88.120:8000/ws?token=${result.access_token}`);
+                        ws.onmessage = function(event) {
+                            var messages = document.getElementById('messages')
+                            var message = document.createElement('li')
+                            var content = document.createTextNode(event.data)
+                            message.appendChild(content)
+                            messages.appendChild(message)
+                        };
+                    })
+            }
+            function sendMessage(event) {
+                let input = document.getElementById("messageText")
+                let username = document.getElementById("username")
+                ws.send(JSON.stringify({
+                    message: input.value,
+                    to: username.value
+                }))
+                var messages = document.getElementById('messages')
+                var message = document.createElement('li')
+                var content = document.createTextNode('me: ' + input.value)
+                input.value = ''
+                message.appendChild(content)
+                messages.appendChild(message)
+                event.preventDefault()
+            }
+        </script>
+    </body>
+</html>
